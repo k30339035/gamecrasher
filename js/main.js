@@ -3,6 +3,7 @@ import { PhysicsWorld } from './PhysicsWorld.js';
 import { Building } from './Building.js';
 import { ParticleSystem } from './ParticleSystem.js';
 import { GameManager } from './GameManager.js';
+import { SoundSystem } from './SoundSystem.js';
 
 class Game {
     constructor() {
@@ -14,6 +15,7 @@ class Game {
         this.building = null;
         this.particleSystem = null;
         this.gameManager = null;
+        this.soundSystem = null;
 
         this.clock = new THREE.Clock();
         this.raycaster = new THREE.Raycaster();
@@ -35,6 +37,9 @@ class Game {
 
         // 파티클 시스템
         this.particleSystem = new ParticleSystem(this.scene);
+
+        // 사운드 시스템
+        this.soundSystem = new SoundSystem();
 
         // 게임 매니저
         this.gameManager = new GameManager();
@@ -191,14 +196,23 @@ class Game {
 
     setupGameEvents() {
         this.gameManager.on('onStart', () => {
+            // 사운드 시스템 초기화 (사용자 상호작용 후)
+            this.soundSystem.init();
+            this.soundSystem.playAmbience();
+            this.soundSystem.playUIClick();
             this.startLevel();
         });
 
         this.gameManager.on('onNextLevel', () => {
-            this.startLevel();
+            this.soundSystem.playLevelComplete();
+            setTimeout(() => {
+                this.soundSystem.playUIClick();
+                this.startLevel();
+            }, 500);
         });
 
         this.gameManager.on('onRestart', () => {
+            this.soundSystem.playUIClick();
             this.startLevel();
         });
     }
@@ -291,6 +305,9 @@ class Game {
                         block.mesh.material.color.getHex(),
                         block.blockType
                     );
+
+                    // 사운드 효과 (재질별 효과)
+                    this.soundSystem.playBlockDestroy(block.blockType);
 
                     // 블록 파괴
                     block.destroy();
