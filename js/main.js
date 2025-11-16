@@ -49,62 +49,97 @@ class Game {
 
     setupScene() {
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x87ceeb); // 하늘색
-        this.scene.fog = new THREE.Fog(0x87ceeb, 50, 100);
+
+        // 현실적인 하늘 그라데이션
+        const skyColor = new THREE.Color(0xa0d8f1);
+        const horizonColor = new THREE.Color(0xe6f2ff);
+        this.scene.background = skyColor;
+        this.scene.fog = new THREE.Fog(horizonColor, 80, 200);
+
+        // 환경 큐브맵 (반사용)
+        this.createEnvironmentMap();
+    }
+
+    createEnvironmentMap() {
+        // 간단한 큐브맵 생성 (하늘 시뮬레이션)
+        const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(256, {
+            format: THREE.RGBAFormat,
+            generateMipmaps: true,
+            minFilter: THREE.LinearMipmapLinearFilter
+        });
+
+        const cubeCamera = new THREE.CubeCamera(0.1, 100, cubeRenderTarget);
+        this.scene.environment = cubeRenderTarget.texture;
     }
 
     setupCamera() {
         this.camera = new THREE.PerspectiveCamera(
-            75,
+            60,
             window.innerWidth / window.innerHeight,
             0.1,
             1000
         );
-        this.camera.position.set(0, 15, 30);
-        this.camera.lookAt(0, 5, 0);
+        this.camera.position.set(25, 20, 35);
+        this.camera.lookAt(0, 10, 0);
     }
 
     setupRenderer() {
         this.renderer = new THREE.WebGLRenderer({
             canvas: this.canvas,
-            antialias: true
+            antialias: true,
+            alpha: true
         });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+        // 고급 렌더링 설정
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 1.2;
+        this.renderer.outputEncoding = THREE.sRGBEncoding;
+        this.renderer.physicallyCorrectLights = true;
     }
 
     setupLights() {
-        // 주변광
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        // 부드러운 주변광 (하늘 빛)
+        const ambientLight = new THREE.AmbientLight(0xb3d9ff, 0.4);
         this.scene.add(ambientLight);
 
-        // 태양광
-        const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        sunLight.position.set(20, 30, 20);
+        // 태양광 (메인 조명)
+        const sunLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        sunLight.position.set(50, 60, 30);
         sunLight.castShadow = true;
-        sunLight.shadow.mapSize.width = 2048;
-        sunLight.shadow.mapSize.height = 2048;
-        sunLight.shadow.camera.left = -30;
-        sunLight.shadow.camera.right = 30;
-        sunLight.shadow.camera.top = 30;
-        sunLight.shadow.camera.bottom = -30;
+
+        // 고품질 그림자 설정
+        sunLight.shadow.mapSize.width = 4096;
+        sunLight.shadow.mapSize.height = 4096;
+        sunLight.shadow.camera.left = -50;
+        sunLight.shadow.camera.right = 50;
+        sunLight.shadow.camera.top = 50;
+        sunLight.shadow.camera.bottom = -50;
+        sunLight.shadow.camera.near = 0.5;
+        sunLight.shadow.camera.far = 200;
+        sunLight.shadow.bias = -0.0001;
         this.scene.add(sunLight);
 
-        // 포인트 라이트 (다이나믹한 효과)
-        const pointLight = new THREE.PointLight(0xffa500, 0.5, 50);
-        pointLight.position.set(0, 20, 0);
-        this.scene.add(pointLight);
+        // 반대편 채우기 조명 (부드러운 그림자)
+        const fillLight = new THREE.DirectionalLight(0x9db4c8, 0.3);
+        fillLight.position.set(-30, 20, -30);
+        this.scene.add(fillLight);
+
+        // 하늘 반사광 (위에서)
+        const skyLight = new THREE.HemisphereLight(0xffffff, 0x8899aa, 0.5);
+        this.scene.add(skyLight);
     }
 
     setupEnvironment() {
-        // 바닥
-        const groundGeometry = new THREE.PlaneGeometry(100, 100);
+        // 도시 바닥 (콘크리트/아스팔트)
+        const groundGeometry = new THREE.PlaneGeometry(200, 200);
         const groundMaterial = new THREE.MeshStandardMaterial({
-            color: 0x4a7c59,
-            roughness: 0.8,
-            metalness: 0.2
+            color: 0x3a3a3a,
+            roughness: 0.85,
+            metalness: 0.15
         });
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
         ground.rotation.x = -Math.PI / 2;
@@ -112,12 +147,46 @@ class Game {
         ground.receiveShadow = true;
         this.scene.add(ground);
 
-        // 그리드 헬퍼 (선택사항)
-        const gridHelper = new THREE.GridHelper(100, 50, 0x000000, 0x000000);
-        gridHelper.position.y = -4.9;
-        gridHelper.material.opacity = 0.2;
+        // 도시 그리드 (도로 라인)
+        const gridHelper = new THREE.GridHelper(200, 40, 0x555555, 0x444444);
+        gridHelper.position.y = -4.95;
+        gridHelper.material.opacity = 0.3;
         gridHelper.material.transparent = true;
         this.scene.add(gridHelper);
+
+        // 주변 건물 실루엣 (분위기용)
+        this.createCityscape();
+    }
+
+    createCityscape() {
+        const buildingColors = [0x4a4a4a, 0x5a5a5a, 0x3a3a3a];
+
+        for (let i = 0; i < 15; i++) {
+            const width = 5 + Math.random() * 10;
+            const height = 20 + Math.random() * 40;
+            const depth = 5 + Math.random() * 10;
+
+            const geometry = new THREE.BoxGeometry(width, height, depth);
+            const material = new THREE.MeshStandardMaterial({
+                color: buildingColors[Math.floor(Math.random() * buildingColors.length)],
+                roughness: 0.8,
+                metalness: 0.2
+            });
+
+            const building = new THREE.Mesh(geometry, material);
+
+            // 원형으로 배치
+            const angle = (i / 15) * Math.PI * 2;
+            const radius = 80 + Math.random() * 30;
+            building.position.x = Math.cos(angle) * radius;
+            building.position.z = Math.sin(angle) * radius;
+            building.position.y = height / 2 - 5;
+
+            building.castShadow = true;
+            building.receiveShadow = true;
+
+            this.scene.add(building);
+        }
     }
 
     setupGameEvents() {
@@ -216,10 +285,11 @@ class Game {
 
                     block.applyImpulse(impulse, localPoint);
 
-                    // 파티클 효과
+                    // 파티클 효과 (재질별 효과)
                     this.particleSystem.createExplosion(
                         clickPoint,
-                        block.mesh.material.color.getHex()
+                        block.mesh.material.color.getHex(),
+                        block.blockType
                     );
 
                     // 블록 파괴
@@ -272,9 +342,23 @@ class Game {
             this.particleSystem.update(deltaTime);
         }
 
-        // 카메라 애니메이션 (살짝 회전)
+        // 부드러운 카메라 궤도 애니메이션
         const time = this.clock.getElapsedTime();
-        this.camera.position.x = Math.sin(time * 0.1) * 5;
+        const radius = 40;
+        const height = 20;
+        const speed = 0.08;
+
+        this.camera.position.x = Math.sin(time * speed) * radius;
+        this.camera.position.z = Math.cos(time * speed) * radius;
+        this.camera.position.y = height + Math.sin(time * speed * 0.5) * 5;
+
+        // 건물 중심을 바라보기
+        if (this.building && this.building.blocks.length > 0) {
+            const avgY = this.gameManager.currentLevel * 2 + 5;
+            this.camera.lookAt(0, avgY, 0);
+        } else {
+            this.camera.lookAt(0, 10, 0);
+        }
 
         // 렌더링
         this.renderer.render(this.scene, this.camera);

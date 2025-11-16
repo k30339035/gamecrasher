@@ -6,18 +6,181 @@ export class ParticleSystem {
         this.particles = [];
     }
 
-    createExplosion(position, color) {
+    createExplosion(position, color, blockType = 'default') {
+        // 재질에 따른 파티클 효과
+        switch(blockType) {
+            case 'glass':
+                this.createGlassShatter(position);
+                break;
+            case 'concrete':
+                this.createConcreteDebris(position);
+                break;
+            case 'steel':
+            case 'window_frame':
+                this.createMetalSparks(position);
+                break;
+            default:
+                this.createDefaultExplosion(position, color);
+        }
+    }
+
+    createGlassShatter(position) {
+        const particleCount = 50;
+        const geometry = new THREE.BufferGeometry();
+        const positions = [];
+        const velocities = [];
+        const colors = [];
+        const sizes = [];
+
+        for (let i = 0; i < particleCount; i++) {
+            positions.push(position.x, position.y, position.z);
+
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.random() * Math.PI;
+            const speed = 8 + Math.random() * 15;
+
+            velocities.push(
+                Math.sin(phi) * Math.cos(theta) * speed,
+                Math.sin(phi) * Math.sin(theta) * speed + 5,
+                Math.cos(phi) * speed
+            );
+
+            // 유리 파편 색상 (반짝이는 청록색)
+            const brightness = 0.7 + Math.random() * 0.3;
+            colors.push(brightness, brightness, 1.0);
+            sizes.push(0.2 + Math.random() * 0.3);
+        }
+
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        geometry.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
+
+        const material = new THREE.PointsMaterial({
+            size: 0.4,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.9,
+            blending: THREE.AdditiveBlending,
+            sizeAttenuation: true
+        });
+
+        const particleSystem = new THREE.Points(geometry, material);
+        this.scene.add(particleSystem);
+
+        this.particles.push({
+            system: particleSystem,
+            velocities: velocities,
+            life: 1.5,
+            decay: 0.015
+        });
+    }
+
+    createConcreteDebris(position) {
+        const particleCount = 40;
+        const geometry = new THREE.BufferGeometry();
+        const positions = [];
+        const velocities = [];
+        const colors = [];
+
+        for (let i = 0; i < particleCount; i++) {
+            positions.push(position.x, position.y, position.z);
+
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.random() * Math.PI * 0.7;
+            const speed = 3 + Math.random() * 8;
+
+            velocities.push(
+                Math.sin(phi) * Math.cos(theta) * speed,
+                Math.sin(phi) * Math.sin(theta) * speed + 3,
+                Math.cos(phi) * speed
+            );
+
+            // 콘크리트 먼지와 파편 (회색)
+            const gray = 0.4 + Math.random() * 0.3;
+            colors.push(gray, gray, gray + 0.05);
+        }
+
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+        const material = new THREE.PointsMaterial({
+            size: 0.5,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.8,
+            blending: THREE.NormalBlending
+        });
+
+        const particleSystem = new THREE.Points(geometry, material);
+        this.scene.add(particleSystem);
+
+        this.particles.push({
+            system: particleSystem,
+            velocities: velocities,
+            life: 1.2,
+            decay: 0.018
+        });
+    }
+
+    createMetalSparks(position) {
+        const particleCount = 35;
+        const geometry = new THREE.BufferGeometry();
+        const positions = [];
+        const velocities = [];
+        const colors = [];
+
+        for (let i = 0; i < particleCount; i++) {
+            positions.push(position.x, position.y, position.z);
+
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.random() * Math.PI * 0.5;
+            const speed = 6 + Math.random() * 12;
+
+            velocities.push(
+                Math.sin(phi) * Math.cos(theta) * speed,
+                Math.sin(phi) * Math.sin(theta) * speed + 4,
+                Math.cos(phi) * speed
+            );
+
+            // 스파크 (주황/노랑)
+            const r = 1.0;
+            const g = 0.6 + Math.random() * 0.4;
+            const b = Math.random() * 0.3;
+            colors.push(r, g, b);
+        }
+
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+        const material = new THREE.PointsMaterial({
+            size: 0.25,
+            vertexColors: true,
+            transparent: true,
+            opacity: 1.0,
+            blending: THREE.AdditiveBlending
+        });
+
+        const particleSystem = new THREE.Points(geometry, material);
+        this.scene.add(particleSystem);
+
+        this.particles.push({
+            system: particleSystem,
+            velocities: velocities,
+            life: 0.8,
+            decay: 0.03
+        });
+    }
+
+    createDefaultExplosion(position, color) {
         const particleCount = 30;
         const geometry = new THREE.BufferGeometry();
         const positions = [];
         const velocities = [];
         const colors = [];
 
-        // 파티클 생성
         for (let i = 0; i < particleCount; i++) {
             positions.push(position.x, position.y, position.z);
 
-            // 랜덤 방향으로 속도 설정
             const theta = Math.random() * Math.PI * 2;
             const phi = Math.random() * Math.PI;
             const speed = 5 + Math.random() * 10;
@@ -28,7 +191,6 @@ export class ParticleSystem {
                 Math.cos(phi) * speed
             );
 
-            // 색상 설정
             const c = new THREE.Color(color);
             colors.push(c.r, c.g, c.b);
         }
@@ -47,7 +209,6 @@ export class ParticleSystem {
         const particleSystem = new THREE.Points(geometry, material);
         this.scene.add(particleSystem);
 
-        // 파티클 데이터 저장
         this.particles.push({
             system: particleSystem,
             velocities: velocities,
