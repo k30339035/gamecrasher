@@ -1,0 +1,1377 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Drone Dodger - 드론을 피하라!</title>
+
+    <style>
+        /* ==================== 기본 스타일 ==================== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            background: linear-gradient(to bottom, #87CEEB, #E0F6FF);
+            touch-action: none;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        /* ==================== 게임 컨테이너 ==================== */
+        #game-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        #canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* ==================== UI 오버레이 ==================== */
+        #ui-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        /* ==================== HUD (점수판) ==================== */
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            pointer-events: none;
+        }
+
+        .hud-item {
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            margin: 5px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .hud-label {
+            color: #FFD700;
+            margin-right: 8px;
+        }
+
+        /* ==================== 생명력 (하트) ==================== */
+        #lives-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .heart {
+            font-size: 32px;
+            animation: heartbeat 1.5s ease-in-out infinite;
+        }
+
+        @keyframes heartbeat {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        /* ==================== 모달 (시작/게임오버 화면) ==================== */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            pointer-events: auto;
+        }
+
+        .modal.hidden {
+            display: none;
+        }
+
+        .modal-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            color: white;
+        }
+
+        .modal-content h1 {
+            font-size: 48px;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content h2 {
+            font-size: 36px;
+            margin-bottom: 20px;
+            color: #FFD700;
+        }
+
+        .modal-content p {
+            font-size: 20px;
+            margin: 15px 0;
+            line-height: 1.6;
+        }
+
+        .modal-content button {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 22px;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            pointer-events: auto;
+        }
+
+        .modal-content button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        .modal-content button:active {
+            transform: translateY(0);
+        }
+
+        /* ==================== 컨트롤 가이드 ==================== */
+        #controls-guide {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 14px;
+            pointer-events: none;
+        }
+
+        #controls-guide.hidden {
+            display: none;
+        }
+
+        /* ==================== 터치 컨트롤 영역 표시 ==================== */
+        .touch-zone {
+            position: fixed;
+            bottom: 0;
+            height: 30%;
+            width: 33.33%;
+            pointer-events: auto;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .touch-zone.active {
+            opacity: 0.2;
+        }
+
+        #touch-left {
+            left: 0;
+            background: linear-gradient(to right, #4facfe, transparent);
+        }
+
+        #touch-center {
+            left: 33.33%;
+            background: linear-gradient(to bottom, transparent, #f093fb);
+        }
+
+        #touch-right {
+            right: 0;
+            background: linear-gradient(to left, #43e97b, transparent);
+        }
+
+        /* ==================== 대시 효과 ==================== */
+        #dash-indicator {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 215, 0, 0.9);
+            color: #000;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 16px;
+            display: none;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
+        }
+
+        #dash-indicator.active {
+            display: block;
+            animation: pulse 0.5s ease-in-out;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: translateX(-50%) scale(1); }
+            50% { transform: translateX(-50%) scale(1.2); }
+        }
+
+        /* ==================== 파워업 알림 ==================== */
+        #powerup-notification {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 20px 40px;
+            border-radius: 15px;
+            font-size: 24px;
+            font-weight: bold;
+            display: none;
+            box-shadow: 0 0 30px rgba(240, 147, 251, 0.8);
+            pointer-events: none;
+        }
+
+        #powerup-notification.show {
+            display: block;
+            animation: fadeInOut 2s ease-in-out;
+        }
+
+        @keyframes fadeInOut {
+            0%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+            50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+        }
+
+        /* ==================== 모바일 최적화 ==================== */
+        @media (max-width: 768px) {
+            .hud-item {
+                font-size: 14px;
+                padding: 8px 15px;
+            }
+
+            .modal-content h1 {
+                font-size: 36px;
+            }
+
+            .modal-content h2 {
+                font-size: 28px;
+            }
+
+            .modal-content p {
+                font-size: 16px;
+            }
+
+            .modal-content button {
+                font-size: 18px;
+                padding: 12px 30px;
+            }
+
+            .heart {
+                font-size: 24px;
+            }
+        }
+
+        /* ==================== 로딩 스피너 ==================== */
+        #loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            color: white;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 30px 50px;
+            border-radius: 15px;
+            z-index: 2000;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- 게임 캔버스 -->
+    <div id="game-container">
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <!-- UI 오버레이 -->
+    <div id="ui-overlay">
+        <!-- HUD (점수판) -->
+        <div id="hud">
+            <div class="hud-item">
+                <span class="hud-label">점수:</span>
+                <span id="score">0</span>
+            </div>
+            <div class="hud-item">
+                <span class="hud-label">스테이지:</span>
+                <span id="stage">1</span>
+            </div>
+            <div class="hud-item">
+                <span class="hud-label">최고 점수:</span>
+                <span id="highscore">0</span>
+            </div>
+        </div>
+
+        <!-- 생명력 (하트) -->
+        <div id="lives-container">
+            <span class="heart">❤️</span>
+            <span class="heart">❤️</span>
+            <span class="heart">❤️</span>
+        </div>
+
+        <!-- 시작 화면 -->
+        <div id="start-screen" class="modal">
+            <div class="modal-content">
+                <h1>🚁 Drone Dodger</h1>
+                <p>드론을 피하라!</p>
+                <p>📱 모바일: 화면 좌/우 탭으로 이동</p>
+                <p>⌨️ 데스크톱: A/D 또는 화살표 키</p>
+                <p>⚡ 대시: 스페이스바 / 화면 중앙 더블탭</p>
+                <button id="start-button">게임 시작</button>
+            </div>
+        </div>
+
+        <!-- 일시정지 화면 -->
+        <div id="pause-screen" class="modal hidden">
+            <div class="modal-content">
+                <h2>⏸️ 일시정지</h2>
+                <p>잠시 쉬어가세요!</p>
+                <button id="resume-button">계속하기</button>
+                <button id="restart-button">다시 시작</button>
+            </div>
+        </div>
+
+        <!-- 게임 오버 화면 -->
+        <div id="gameover-screen" class="modal hidden">
+            <div class="modal-content">
+                <h2>💥 게임 오버</h2>
+                <p>최종 점수: <span id="final-score">0</span></p>
+                <p>스테이지: <span id="final-stage">1</span></p>
+                <p>최고 점수: <span id="final-highscore">0</span></p>
+                <button id="retry-button">다시 도전</button>
+            </div>
+        </div>
+
+        <!-- 컨트롤 가이드 -->
+        <div id="controls-guide">
+            ⬅️ A/← 왼쪽 | D/→ 오른쪽 ➡️ | ⚡ Space 대시 | P 일시정지
+        </div>
+
+        <!-- 터치 컨트롤 영역 (모바일용) -->
+        <div id="touch-left" class="touch-zone"></div>
+        <div id="touch-center" class="touch-zone"></div>
+        <div id="touch-right" class="touch-zone"></div>
+
+        <!-- 대시 표시 -->
+        <div id="dash-indicator">⚡ DASH! ⚡</div>
+
+        <!-- 파워업 알림 -->
+        <div id="powerup-notification"></div>
+    </div>
+
+    <!-- 로딩 화면 -->
+    <div id="loading">
+        <div>로딩 중...</div>
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Three.js 라이브러리 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script>
+        // ==================== 게임 상수 ====================
+        const GAME_CONFIG = {
+            // 플레이어 설정
+            PLAYER_SPEED: 0.15,
+            PLAYER_DASH_SPEED: 0.35,
+            PLAYER_DASH_DURATION: 300, // ms
+            PLAYER_DASH_COOLDOWN: 1000, // ms
+            PLAYER_BOUNDS: 3, // 플레이어 이동 범위
+
+            // 드론 설정
+            DRONE_TYPES: {
+                SLOW: { speed: 0.08, color: 0xff0000, score: 10, spawnChance: 0.5 },    // 빨강 - 느림
+                MEDIUM: { speed: 0.12, color: 0x0000ff, score: 20, spawnChance: 0.35 }, // 파랑 - 중간
+                FAST: { speed: 0.18, color: 0xffff00, score: 30, spawnChance: 0.15 }    // 노랑 - 빠름
+            },
+            DRONE_SPAWN_INTERVAL: 1500, // ms
+            DRONE_SPAWN_MIN_INTERVAL: 500, // ms (최소 간격)
+            DRONE_HEIGHT_POSITIONS: [0, 1.5, 3], // 드론이 날아오는 높이 (하, 중, 상)
+
+            // 파워업 설정
+            POWERUP_SPAWN_CHANCE: 0.05, // 5% 확률
+            POWERUP_DURATION: 5000, // ms
+            POWERUP_TYPES: {
+                SHIELD: { color: 0x00ffff, emoji: '🛡️' },
+                SPEED: { color: 0x00ff00, emoji: '⚡' },
+                SLOWMO: { color: 0xff00ff, emoji: '⏱️' }
+            },
+
+            // 게임 진행
+            INITIAL_LIVES: 3,
+            STAGE_THRESHOLD: 10, // 드론 10개마다 스테이지 증가
+            DIFFICULTY_INCREASE_RATE: 0.95 // 스테이지마다 생성 간격 5% 감소
+        };
+
+        // ==================== 게임 상태 ====================
+        class GameState {
+            constructor() {
+                this.score = 0;
+                this.lives = GAME_CONFIG.INITIAL_LIVES;
+                this.stage = 1;
+                this.highscore = localStorage.getItem('droneDodgerHighscore') || 0;
+                this.isPaused = false;
+                this.isGameOver = false;
+                this.isPlaying = false;
+                this.dronesDoged = 0; // 피한 드론 수
+
+                // 플레이어 상태
+                this.playerX = 0;
+                this.playerVelocity = 0;
+                this.isDashing = false;
+                this.dashCooldown = false;
+                this.activePowerup = null;
+                this.powerupEndTime = 0;
+
+                // 난이도 조절
+                this.currentSpawnInterval = GAME_CONFIG.DRONE_SPAWN_INTERVAL;
+            }
+
+            addScore(points) {
+                this.score += points;
+                if (this.score > this.highscore) {
+                    this.highscore = this.score;
+                    localStorage.setItem('droneDodgerHighscore', this.highscore);
+                }
+                this.updateUI();
+            }
+
+            loseLife() {
+                if (this.activePowerup === 'SHIELD') {
+                    // 실드가 있으면 데미지 무효
+                    this.deactivatePowerup();
+                    showNotification('🛡️ 실드가 공격을 막았습니다!');
+                    return;
+                }
+
+                this.lives--;
+                this.updateUI();
+
+                if (this.lives <= 0) {
+                    this.gameOver();
+                }
+            }
+
+            incrementDodged() {
+                this.dronesDoged++;
+
+                // 10개마다 스테이지 증가
+                if (this.dronesDoged % GAME_CONFIG.STAGE_THRESHOLD === 0) {
+                    this.stage++;
+                    this.currentSpawnInterval = Math.max(
+                        GAME_CONFIG.DRONE_SPAWN_MIN_INTERVAL,
+                        this.currentSpawnInterval * GAME_CONFIG.DIFFICULTY_INCREASE_RATE
+                    );
+                    this.updateUI();
+                    showNotification(`🎉 스테이지 ${this.stage}!`);
+                    updateBackgroundColor(this.stage);
+                }
+            }
+
+            activatePowerup(type) {
+                this.activePowerup = type;
+                this.powerupEndTime = Date.now() + GAME_CONFIG.POWERUP_DURATION;
+
+                const powerup = GAME_CONFIG.POWERUP_TYPES[type];
+                showNotification(`${powerup.emoji} 파워업 획득!`);
+            }
+
+            deactivatePowerup() {
+                this.activePowerup = null;
+                this.powerupEndTime = 0;
+            }
+
+            updateUI() {
+                document.getElementById('score').textContent = this.score;
+                document.getElementById('stage').textContent = this.stage;
+                document.getElementById('highscore').textContent = this.highscore;
+
+                // 하트 업데이트
+                const hearts = document.querySelectorAll('.heart');
+                hearts.forEach((heart, index) => {
+                    heart.style.opacity = index < this.lives ? '1' : '0.3';
+                });
+            }
+
+            gameOver() {
+                this.isGameOver = true;
+                this.isPlaying = false;
+
+                document.getElementById('final-score').textContent = this.score;
+                document.getElementById('final-stage').textContent = this.stage;
+                document.getElementById('final-highscore').textContent = this.highscore;
+                document.getElementById('gameover-screen').classList.remove('hidden');
+            }
+
+            reset() {
+                this.score = 0;
+                this.lives = GAME_CONFIG.INITIAL_LIVES;
+                this.stage = 1;
+                this.isPaused = false;
+                this.isGameOver = false;
+                this.isPlaying = true;
+                this.dronesDoged = 0;
+                this.playerX = 0;
+                this.playerVelocity = 0;
+                this.isDashing = false;
+                this.dashCooldown = false;
+                this.activePowerup = null;
+                this.powerupEndTime = 0;
+                this.currentSpawnInterval = GAME_CONFIG.DRONE_SPAWN_INTERVAL;
+                this.updateUI();
+            }
+        }
+
+        // ==================== Three.js 초기화 ====================
+        let scene, camera, renderer;
+        let player, road, clouds = [];
+        let drones = [];
+        let powerups = [];
+        let particles = [];
+        let gameState;
+
+        function initThreeJS() {
+            // 씬 생성
+            scene = new THREE.Scene();
+            scene.fog = new THREE.Fog(0x87CEEB, 10, 50);
+
+            // 카메라 설정
+            camera = new THREE.PerspectiveCamera(
+                75,
+                window.innerWidth / window.innerHeight,
+                0.1,
+                1000
+            );
+            camera.position.set(0, 4, 8);
+            camera.lookAt(0, 2, 0);
+
+            // 렌더러 설정
+            const canvas = document.getElementById('canvas');
+            renderer = new THREE.WebGLRenderer({
+                canvas: canvas,
+                antialias: true,
+                alpha: true
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // 모바일 성능 최적화
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+            // 조명 설정
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(5, 10, 5);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.camera.left = -20;
+            directionalLight.shadow.camera.right = 20;
+            directionalLight.shadow.camera.top = 20;
+            directionalLight.shadow.camera.bottom = -20;
+            scene.add(directionalLight);
+
+            // 반구 조명 (하늘 느낌)
+            const hemisphereLight = new THREE.HemisphereLight(0x87CEEB, 0x545454, 0.4);
+            scene.add(hemisphereLight);
+        }
+
+        // ==================== 플레이어 생성 ====================
+        function createPlayer() {
+            const playerGroup = new THREE.Group();
+
+            // 몸통 (원기둥)
+            const bodyGeometry = new THREE.CylinderGeometry(0.3, 0.4, 1.2, 16);
+            const bodyMaterial = new THREE.MeshPhongMaterial({ color: 0x3498db });
+            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            body.position.y = 0.6;
+            body.castShadow = true;
+            playerGroup.add(body);
+
+            // 헬멧 (구체)
+            const helmetGeometry = new THREE.SphereGeometry(0.4, 16, 16);
+            const helmetMaterial = new THREE.MeshPhongMaterial({
+                color: 0xe74c3c,
+                shininess: 100
+            });
+            const helmet = new THREE.Mesh(helmetGeometry, helmetMaterial);
+            helmet.position.y = 1.5;
+            helmet.castShadow = true;
+            playerGroup.add(helmet);
+
+            // 헬멧 바이저 (투명한 반구)
+            const visorGeometry = new THREE.SphereGeometry(0.38, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+            const visorMaterial = new THREE.MeshPhongMaterial({
+                color: 0x000000,
+                transparent: true,
+                opacity: 0.6,
+                shininess: 100
+            });
+            const visor = new THREE.Mesh(visorGeometry, visorMaterial);
+            visor.position.y = 1.5;
+            visor.rotation.x = Math.PI;
+            playerGroup.add(visor);
+
+            // 팔 (좌)
+            const armGeometry = new THREE.CylinderGeometry(0.1, 0.1, 0.8, 8);
+            const armMaterial = new THREE.MeshPhongMaterial({ color: 0x3498db });
+
+            const leftArm = new THREE.Mesh(armGeometry, armMaterial);
+            leftArm.position.set(-0.5, 0.6, 0);
+            leftArm.castShadow = true;
+            playerGroup.add(leftArm);
+
+            // 팔 (우)
+            const rightArm = new THREE.Mesh(armGeometry, armMaterial);
+            rightArm.position.set(0.5, 0.6, 0);
+            rightArm.castShadow = true;
+            playerGroup.add(rightArm);
+
+            // 다리 (좌)
+            const legGeometry = new THREE.CylinderGeometry(0.15, 0.12, 0.6, 8);
+            const leftLeg = new THREE.Mesh(legGeometry, armMaterial);
+            leftLeg.position.set(-0.2, -0.3, 0);
+            leftLeg.castShadow = true;
+            playerGroup.add(leftLeg);
+
+            // 다리 (우)
+            const rightLeg = new THREE.Mesh(legGeometry, armMaterial);
+            rightLeg.position.set(0.2, -0.3, 0);
+            rightLeg.castShadow = true;
+            playerGroup.add(rightLeg);
+
+            playerGroup.position.set(0, 0.5, 5);
+            scene.add(playerGroup);
+
+            return playerGroup;
+        }
+
+        // ==================== 드론 생성 ====================
+        function createDrone(type) {
+            const droneGroup = new THREE.Group();
+            const config = GAME_CONFIG.DRONE_TYPES[type];
+
+            // 드론 몸체 (박스)
+            const bodyGeometry = new THREE.BoxGeometry(0.8, 0.3, 0.8);
+            const bodyMaterial = new THREE.MeshPhongMaterial({
+                color: config.color,
+                shininess: 50
+            });
+            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            body.castShadow = true;
+            droneGroup.add(body);
+
+            // 프로펠러 암 (4개)
+            const armGeometry = new THREE.CylinderGeometry(0.05, 0.05, 0.6, 8);
+            const armMaterial = new THREE.MeshPhongMaterial({ color: 0x2c3e50 });
+
+            const armPositions = [
+                { x: 0.5, z: 0.5, rotation: Math.PI / 4 },
+                { x: -0.5, z: 0.5, rotation: -Math.PI / 4 },
+                { x: 0.5, z: -0.5, rotation: -Math.PI / 4 },
+                { x: -0.5, z: -0.5, rotation: Math.PI / 4 }
+            ];
+
+            const propellers = [];
+            armPositions.forEach(pos => {
+                const arm = new THREE.Mesh(armGeometry, armMaterial);
+                arm.position.set(pos.x, 0, pos.z);
+                arm.rotation.z = pos.rotation;
+                droneGroup.add(arm);
+
+                // 프로펠러 (원기둥)
+                const propellerGeometry = new THREE.CylinderGeometry(0.25, 0.25, 0.05, 8);
+                const propellerMaterial = new THREE.MeshPhongMaterial({
+                    color: 0x95a5a6,
+                    transparent: true,
+                    opacity: 0.7
+                });
+                const propeller = new THREE.Mesh(propellerGeometry, propellerMaterial);
+                propeller.position.set(pos.x * 1.5, 0.2, pos.z * 1.5);
+                propeller.castShadow = true;
+                droneGroup.add(propeller);
+
+                propellers.push(propeller);
+            });
+
+            // 드론 카메라/센서 (작은 구체)
+            const sensorGeometry = new THREE.SphereGeometry(0.15, 8, 8);
+            const sensorMaterial = new THREE.MeshPhongMaterial({
+                color: 0x000000,
+                emissive: 0xff0000,
+                emissiveIntensity: 0.5
+            });
+            const sensor = new THREE.Mesh(sensorGeometry, sensorMaterial);
+            sensor.position.y = -0.2;
+            droneGroup.add(sensor);
+
+            // 랜덤 위치 및 높이 설정
+            const randomX = (Math.random() - 0.5) * 6;
+            const randomHeight = GAME_CONFIG.DRONE_HEIGHT_POSITIONS[
+                Math.floor(Math.random() * GAME_CONFIG.DRONE_HEIGHT_POSITIONS.length)
+            ];
+            droneGroup.position.set(randomX, randomHeight + 0.5, -20);
+
+            droneGroup.userData = {
+                type: type,
+                speed: config.speed,
+                score: config.score,
+                propellers: propellers,
+                rotationSpeed: Math.random() * 0.2 + 0.2
+            };
+
+            scene.add(droneGroup);
+            return droneGroup;
+        }
+
+        // ==================== 파워업 생성 ====================
+        function createPowerup(type) {
+            const powerupGroup = new THREE.Group();
+            const config = GAME_CONFIG.POWERUP_TYPES[type];
+
+            // 파워업 구체
+            const geometry = new THREE.SphereGeometry(0.3, 16, 16);
+            const material = new THREE.MeshPhongMaterial({
+                color: config.color,
+                emissive: config.color,
+                emissiveIntensity: 0.5,
+                transparent: true,
+                opacity: 0.8
+            });
+            const sphere = new THREE.Mesh(geometry, material);
+            sphere.castShadow = true;
+            powerupGroup.add(sphere);
+
+            // 파워업 링 (회전 효과)
+            const ringGeometry = new THREE.TorusGeometry(0.4, 0.05, 8, 16);
+            const ringMaterial = new THREE.MeshPhongMaterial({
+                color: config.color,
+                emissive: config.color,
+                emissiveIntensity: 0.3
+            });
+            const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+            ring.rotation.x = Math.PI / 2;
+            powerupGroup.add(ring);
+
+            const randomX = (Math.random() - 0.5) * 6;
+            const randomHeight = Math.random() * 3 + 0.5;
+            powerupGroup.position.set(randomX, randomHeight, -20);
+
+            powerupGroup.userData = {
+                type: type,
+                ring: ring,
+                rotationSpeed: 0.05,
+                bobSpeed: 0.05,
+                bobOffset: Math.random() * Math.PI * 2
+            };
+
+            scene.add(powerupGroup);
+            return powerupGroup;
+        }
+
+        // ==================== 배경 환경 생성 ====================
+        function createEnvironment() {
+            // 길/다리 생성
+            const roadGeometry = new THREE.BoxGeometry(8, 0.5, 100);
+            const roadMaterial = new THREE.MeshPhongMaterial({
+                color: 0x7f8c8d,
+                shininess: 10
+            });
+            road = new THREE.Mesh(roadGeometry, roadMaterial);
+            road.position.set(0, -0.5, -30);
+            road.receiveShadow = true;
+            scene.add(road);
+
+            // 길 가장자리 라인 (좌)
+            const lineGeometry = new THREE.BoxGeometry(0.2, 0.6, 100);
+            const lineMaterial = new THREE.MeshPhongMaterial({ color: 0xf39c12 });
+
+            const leftLine = new THREE.Mesh(lineGeometry, lineMaterial);
+            leftLine.position.set(-4, -0.2, -30);
+            scene.add(leftLine);
+
+            const rightLine = new THREE.Mesh(lineGeometry, lineMaterial);
+            rightLine.position.set(4, -0.2, -30);
+            scene.add(rightLine);
+
+            // 구름 생성
+            createClouds();
+
+            // 배경색 설정
+            updateBackgroundColor(1);
+        }
+
+        // ==================== 구름 생성 ====================
+        function createClouds() {
+            const cloudGeometry = new THREE.SphereGeometry(1, 8, 8);
+            const cloudMaterial = new THREE.MeshPhongMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.7
+            });
+
+            for (let i = 0; i < 15; i++) {
+                const cloudGroup = new THREE.Group();
+
+                // 구름은 여러 개의 구체로 구성
+                for (let j = 0; j < 3; j++) {
+                    const cloud = new THREE.Mesh(cloudGeometry, cloudMaterial);
+                    cloud.position.set(
+                        (Math.random() - 0.5) * 2,
+                        (Math.random() - 0.5) * 0.5,
+                        (Math.random() - 0.5) * 2
+                    );
+                    cloud.scale.set(
+                        Math.random() * 0.5 + 0.5,
+                        Math.random() * 0.5 + 0.5,
+                        Math.random() * 0.5 + 0.5
+                    );
+                    cloudGroup.add(cloud);
+                }
+
+                cloudGroup.position.set(
+                    (Math.random() - 0.5) * 30,
+                    Math.random() * 5 + 5,
+                    -Math.random() * 50 - 10
+                );
+
+                cloudGroup.userData = {
+                    speed: Math.random() * 0.01 + 0.005,
+                    initialZ: cloudGroup.position.z
+                };
+
+                scene.add(cloudGroup);
+                clouds.push(cloudGroup);
+            }
+        }
+
+        // ==================== 배경색 업데이트 (스테이지마다) ====================
+        function updateBackgroundColor(stage) {
+            const colors = [
+                0x87CEEB, // 하늘색
+                0x9BB5D8, // 연한 파랑
+                0xB8A0C8, // 연한 보라
+                0xC89BA0, // 연한 분홍
+                0xD8B59B, // 연한 주황
+                0xB5D89B, // 연한 초록
+                0x9BD5D8, // 연한 청록
+                0xA09BD8, // 연한 남색
+                0xD89BC8, // 연한 자주
+                0xD8D89B  // 연한 노랑
+            ];
+
+            const colorIndex = (stage - 1) % colors.length;
+            scene.background = new THREE.Color(colors[colorIndex]);
+            scene.fog.color = new THREE.Color(colors[colorIndex]);
+        }
+
+        // ==================== 파티클 효과 생성 ====================
+        function createParticleExplosion(position, color) {
+            const particleCount = 20;
+            const particleGeometry = new THREE.SphereGeometry(0.1, 4, 4);
+            const particleMaterial = new THREE.MeshBasicMaterial({ color: color });
+
+            for (let i = 0; i < particleCount; i++) {
+                const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+                particle.position.copy(position);
+
+                const velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.3,
+                    (Math.random() - 0.5) * 0.3,
+                    (Math.random() - 0.5) * 0.3
+                );
+
+                particle.userData = {
+                    velocity: velocity,
+                    life: 1.0,
+                    decay: Math.random() * 0.02 + 0.01
+                };
+
+                scene.add(particle);
+                particles.push(particle);
+            }
+        }
+
+        // ==================== 입력 컨트롤 ====================
+        const keys = {
+            left: false,
+            right: false,
+            dash: false
+        };
+
+        let lastTapTime = 0;
+        let lastTapX = 0;
+
+        // 키보드 이벤트
+        document.addEventListener('keydown', (e) => {
+            if (!gameState.isPlaying) return;
+
+            switch(e.key.toLowerCase()) {
+                case 'a':
+                case 'arrowleft':
+                    keys.left = true;
+                    break;
+                case 'd':
+                case 'arrowright':
+                    keys.right = true;
+                    break;
+                case ' ':
+                    e.preventDefault();
+                    activateDash();
+                    break;
+                case 'p':
+                    togglePause();
+                    break;
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            switch(e.key.toLowerCase()) {
+                case 'a':
+                case 'arrowleft':
+                    keys.left = false;
+                    break;
+                case 'd':
+                case 'arrowright':
+                    keys.right = false;
+                    break;
+            }
+        });
+
+        // 터치 컨트롤 (모바일)
+        document.addEventListener('touchstart', (e) => {
+            if (!gameState.isPlaying) return;
+            e.preventDefault();
+
+            const touch = e.touches[0];
+            const screenWidth = window.innerWidth;
+            const touchX = touch.clientX;
+            const screenThird = screenWidth / 3;
+
+            // 더블탭 감지 (대시)
+            const now = Date.now();
+            const tapInterval = now - lastTapTime;
+
+            if (tapInterval < 300 && Math.abs(touchX - lastTapX) < 50) {
+                // 더블탭 - 중앙 영역에서만
+                if (touchX > screenThird && touchX < screenThird * 2) {
+                    activateDash();
+                }
+            }
+
+            lastTapTime = now;
+            lastTapX = touchX;
+
+            // 좌우 이동
+            if (touchX < screenThird) {
+                keys.left = true;
+                keys.right = false;
+                document.getElementById('touch-left').classList.add('active');
+            } else if (touchX > screenThird * 2) {
+                keys.right = true;
+                keys.left = false;
+                document.getElementById('touch-right').classList.add('active');
+            }
+        }, { passive: false });
+
+        document.addEventListener('touchend', (e) => {
+            keys.left = false;
+            keys.right = false;
+            document.querySelectorAll('.touch-zone').forEach(zone => {
+                zone.classList.remove('active');
+            });
+        }, { passive: false });
+
+        document.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+        }, { passive: false });
+
+        // ==================== 대시 활성화 ====================
+        function activateDash() {
+            if (gameState.isDashing || gameState.dashCooldown) return;
+
+            gameState.isDashing = true;
+            gameState.dashCooldown = true;
+
+            // 대시 표시
+            const dashIndicator = document.getElementById('dash-indicator');
+            dashIndicator.classList.add('active');
+
+            // 대시 효과 (잔상)
+            createDashTrail();
+
+            setTimeout(() => {
+                gameState.isDashing = false;
+                dashIndicator.classList.remove('active');
+            }, GAME_CONFIG.PLAYER_DASH_DURATION);
+
+            setTimeout(() => {
+                gameState.dashCooldown = false;
+            }, GAME_CONFIG.PLAYER_DASH_COOLDOWN);
+        }
+
+        // ==================== 대시 잔상 효과 ====================
+        function createDashTrail() {
+            const trailMaterial = new THREE.MeshBasicMaterial({
+                color: 0x3498db,
+                transparent: true,
+                opacity: 0.5
+            });
+
+            const trail = player.clone();
+            trail.traverse((child) => {
+                if (child.isMesh) {
+                    child.material = trailMaterial.clone();
+                }
+            });
+
+            scene.add(trail);
+
+            const fadeOut = setInterval(() => {
+                trail.traverse((child) => {
+                    if (child.isMesh) {
+                        child.material.opacity -= 0.05;
+                    }
+                });
+
+                if (trail.children[0] && trail.children[0].material.opacity <= 0) {
+                    scene.remove(trail);
+                    clearInterval(fadeOut);
+                }
+            }, 50);
+        }
+
+        // ==================== 일시정지 토글 ====================
+        function togglePause() {
+            if (gameState.isGameOver) return;
+
+            gameState.isPaused = !gameState.isPaused;
+
+            if (gameState.isPaused) {
+                document.getElementById('pause-screen').classList.remove('hidden');
+            } else {
+                document.getElementById('pause-screen').classList.add('hidden');
+            }
+        }
+
+        // ==================== 알림 표시 ====================
+        function showNotification(message) {
+            const notification = document.getElementById('powerup-notification');
+            notification.textContent = message;
+            notification.classList.remove('show');
+
+            // 강제 리플로우
+            void notification.offsetWidth;
+
+            notification.classList.add('show');
+
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 2000);
+        }
+
+        // ==================== 충돌 감지 ====================
+        function checkCollision(obj1, obj2) {
+            const distance = obj1.position.distanceTo(obj2.position);
+            return distance < 1.0; // 충돌 판정 거리
+        }
+
+        // ==================== 드론 생성 루프 ====================
+        let droneSpawnTimer = null;
+
+        function startDroneSpawning() {
+            function spawnDrone() {
+                if (!gameState.isPlaying || gameState.isPaused) {
+                    droneSpawnTimer = setTimeout(spawnDrone, 100);
+                    return;
+                }
+
+                // 드론 타입 선택 (확률 기반)
+                const rand = Math.random();
+                let droneType;
+
+                if (rand < GAME_CONFIG.DRONE_TYPES.SLOW.spawnChance) {
+                    droneType = 'SLOW';
+                } else if (rand < GAME_CONFIG.DRONE_TYPES.SLOW.spawnChance + GAME_CONFIG.DRONE_TYPES.MEDIUM.spawnChance) {
+                    droneType = 'MEDIUM';
+                } else {
+                    droneType = 'FAST';
+                }
+
+                const drone = createDrone(droneType);
+                drones.push(drone);
+
+                // 파워업 생성 확률
+                if (Math.random() < GAME_CONFIG.POWERUP_SPAWN_CHANCE) {
+                    const powerupTypes = Object.keys(GAME_CONFIG.POWERUP_TYPES);
+                    const randomType = powerupTypes[Math.floor(Math.random() * powerupTypes.length)];
+                    const powerup = createPowerup(randomType);
+                    powerups.push(powerup);
+                }
+
+                droneSpawnTimer = setTimeout(spawnDrone, gameState.currentSpawnInterval);
+            }
+
+            spawnDrone();
+        }
+
+        function stopDroneSpawning() {
+            if (droneSpawnTimer) {
+                clearTimeout(droneSpawnTimer);
+                droneSpawnTimer = null;
+            }
+        }
+
+        // ==================== 게임 업데이트 ====================
+        function update() {
+            if (!gameState.isPlaying || gameState.isPaused) return;
+
+            // 플레이어 이동
+            let targetVelocity = 0;
+            const speed = gameState.isDashing ? GAME_CONFIG.PLAYER_DASH_SPEED : GAME_CONFIG.PLAYER_SPEED;
+
+            if (gameState.activePowerup === 'SPEED') {
+                speed *= 1.5;
+            }
+
+            if (keys.left) targetVelocity = -speed;
+            if (keys.right) targetVelocity = speed;
+
+            // 부드러운 이동 (보간)
+            gameState.playerVelocity += (targetVelocity - gameState.playerVelocity) * 0.2;
+            gameState.playerX += gameState.playerVelocity;
+
+            // 경계 제한
+            gameState.playerX = Math.max(-GAME_CONFIG.PLAYER_BOUNDS, Math.min(GAME_CONFIG.PLAYER_BOUNDS, gameState.playerX));
+            player.position.x = gameState.playerX;
+
+            // 플레이어 기울기 효과
+            player.rotation.z = -gameState.playerVelocity * 2;
+
+            // 드론 업데이트
+            const droneSpeed = gameState.activePowerup === 'SLOWMO' ? 0.5 : 1.0;
+
+            for (let i = drones.length - 1; i >= 0; i--) {
+                const drone = drones[i];
+
+                // 드론 이동
+                drone.position.z += drone.userData.speed * droneSpeed;
+
+                // 프로펠러 회전
+                drone.userData.propellers.forEach(propeller => {
+                    propeller.rotation.y += drone.userData.rotationSpeed;
+                });
+
+                // 충돌 감지
+                if (Math.abs(drone.position.z - player.position.z) < 1) {
+                    if (checkCollision(drone, player)) {
+                        // 충돌!
+                        createParticleExplosion(drone.position, drone.userData.type === 'SLOW' ? 0xff0000 :
+                                                              drone.userData.type === 'MEDIUM' ? 0x0000ff : 0xffff00);
+                        scene.remove(drone);
+                        drones.splice(i, 1);
+                        gameState.loseLife();
+                        continue;
+                    }
+                }
+
+                // 드론이 플레이어를 지나쳤을 때
+                if (drone.position.z > player.position.z + 2) {
+                    gameState.addScore(drone.userData.score);
+                    gameState.incrementDodged();
+                    scene.remove(drone);
+                    drones.splice(i, 1);
+                }
+            }
+
+            // 파워업 업데이트
+            for (let i = powerups.length - 1; i >= 0; i--) {
+                const powerup = powerups[i];
+
+                // 파워업 이동
+                powerup.position.z += 0.1 * droneSpeed;
+
+                // 파워업 회전 및 상하 움직임
+                powerup.userData.ring.rotation.z += powerup.userData.rotationSpeed;
+                powerup.position.y += Math.sin(Date.now() * 0.003 + powerup.userData.bobOffset) * 0.02;
+
+                // 충돌 감지
+                if (Math.abs(powerup.position.z - player.position.z) < 1) {
+                    if (checkCollision(powerup, player)) {
+                        // 파워업 획득!
+                        createParticleExplosion(powerup.position, GAME_CONFIG.POWERUP_TYPES[powerup.userData.type].color);
+                        gameState.activatePowerup(powerup.userData.type);
+                        scene.remove(powerup);
+                        powerups.splice(i, 1);
+                        continue;
+                    }
+                }
+
+                // 화면을 벗어난 파워업 제거
+                if (powerup.position.z > 10) {
+                    scene.remove(powerup);
+                    powerups.splice(i, 1);
+                }
+            }
+
+            // 파워업 지속시간 체크
+            if (gameState.activePowerup && Date.now() > gameState.powerupEndTime) {
+                gameState.deactivatePowerup();
+            }
+
+            // 파티클 업데이트
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const particle = particles[i];
+
+                particle.position.add(particle.userData.velocity);
+                particle.userData.life -= particle.userData.decay;
+                particle.material.opacity = particle.userData.life;
+
+                if (particle.userData.life <= 0) {
+                    scene.remove(particle);
+                    particles.splice(i, 1);
+                }
+            }
+
+            // 구름 업데이트
+            clouds.forEach(cloud => {
+                cloud.position.z += cloud.userData.speed;
+
+                // 구름이 화면을 벗어나면 재배치
+                if (cloud.position.z > 20) {
+                    cloud.position.z = -60;
+                    cloud.position.x = (Math.random() - 0.5) * 30;
+                }
+            });
+        }
+
+        // ==================== 애니메이션 루프 ====================
+        function animate() {
+            requestAnimationFrame(animate);
+            update();
+            renderer.render(scene, camera);
+        }
+
+        // ==================== 윈도우 리사이즈 ====================
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // ==================== 게임 초기화 ====================
+        function initGame() {
+            // Three.js 초기화
+            initThreeJS();
+
+            // 게임 오브젝트 생성
+            player = createPlayer();
+            createEnvironment();
+
+            // 게임 상태 초기화
+            gameState = new GameState();
+            gameState.updateUI();
+
+            // 로딩 화면 제거
+            document.getElementById('loading').style.display = 'none';
+
+            // 모바일 감지하여 컨트롤 가이드 표시
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            if (!isMobile) {
+                document.getElementById('controls-guide').classList.remove('hidden');
+            }
+
+            // 애니메이션 시작
+            animate();
+        }
+
+        // ==================== 게임 시작 ====================
+        function startGame() {
+            // 기존 드론/파워업 제거
+            drones.forEach(drone => scene.remove(drone));
+            drones = [];
+            powerups.forEach(powerup => scene.remove(powerup));
+            powerups = [];
+            particles.forEach(particle => scene.remove(particle));
+            particles = [];
+
+            // 게임 상태 리셋
+            gameState.reset();
+
+            // 모달 닫기
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('pause-screen').classList.add('hidden');
+            document.getElementById('gameover-screen').classList.add('hidden');
+
+            // 플레이어 위치 리셋
+            player.position.x = 0;
+            player.rotation.z = 0;
+
+            // 드론 생성 시작
+            startDroneSpawning();
+        }
+
+        // ==================== 버튼 이벤트 ====================
+        document.getElementById('start-button').addEventListener('click', startGame);
+        document.getElementById('retry-button').addEventListener('click', startGame);
+        document.getElementById('resume-button').addEventListener('click', togglePause);
+        document.getElementById('restart-button').addEventListener('click', () => {
+            togglePause();
+            startGame();
+        });
+
+        // ==================== 페이지 로드 시 초기화 ====================
+        window.addEventListener('load', initGame);
+    </script>
+</body>
+</html>
